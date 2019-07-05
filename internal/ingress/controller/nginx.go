@@ -146,7 +146,7 @@ func NewNGINXController(config *Configuration, mc metric.Collector, fs file.File
 
 	n.syncQueue = task.NewTaskQueue(n.syncIngress)
 
-	if config.UpdateStatus {
+	if config.UpdateStatus { //默认开启
 		n.syncStatus = status.NewStatusSyncer(pod, status.Config{
 			Client:                 config.Client,
 			PublishService:         config.PublishService,
@@ -159,6 +159,7 @@ func NewNGINXController(config *Configuration, mc metric.Collector, fs file.File
 		klog.Warning("Update of Ingress status is disabled (flag --update-status)")
 	}
 
+	// 生成新的模板配置文件
 	onTemplateChange := func() {
 		template, err := ngx_template.NewTemplate(tmplPath, fs)
 		if err != nil {
@@ -606,7 +607,7 @@ func (n NGINXController) generateTemplate(cfg ngx_config.Configuration, ingressC
 		ProxySetHeaders:            setHeaders,
 		AddHeaders:                 addHeaders,
 		BacklogSize:                sysctlSomaxconn(),
-		Backends:                   ingressCfg.Backends,
+		Backends:                   ingressCfg.Backends, //里面有金丝雀
 		PassthroughBackends:        ingressCfg.PassthroughBackends,
 		Servers:                    ingressCfg.Servers,
 		TCPBackends:                ingressCfg.TCPEndpoints,
@@ -883,7 +884,7 @@ func configureDynamically(pcfg *ingress.Configuration, isDynamicCertificatesEnab
 			LoadBalancing:        backend.LoadBalancing,
 			Service:              service,
 			NoServer:             backend.NoServer,
-			TrafficShapingPolicy: backend.TrafficShapingPolicy,
+			TrafficShapingPolicy: backend.TrafficShapingPolicy,  //金丝雀
 			AlternativeBackends:  backend.AlternativeBackends,
 		}
 

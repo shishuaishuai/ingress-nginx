@@ -596,6 +596,7 @@ type Configuration struct {
 
 	// Block all requests with given Referer headers
 	BlockReferers []string `json:"block-referers"`
+
 }
 
 // NewDefault returns the default nginx configuration
@@ -758,7 +759,7 @@ type TemplateConfig struct {
 	ProxySetHeaders            map[string]string
 	AddHeaders                 map[string]string
 	BacklogSize                int
-	Backends                   []*ingress.Backend
+	Backends                   []*ingress.Backend //里面有金丝雀
 	PassthroughBackends        []*ingress.SSLPassthroughBackend
 	Servers                    []*ingress.Server
 	TCPBackends                []ingress.L4Service

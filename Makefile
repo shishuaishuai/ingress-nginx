@@ -70,7 +70,8 @@ IMAGE = $(REGISTRY)/$(IMGNAME)
 MULTI_ARCH_IMG = $(IMAGE)-$(ARCH)
 
 # Set default base image dynamically for each arch
-BASEIMAGE?=quay.io/kubernetes-ingress-controller/nginx-$(ARCH):0.87
+# BASEIMAGE?=172.16.1.99/transwarp/kubernetes-ingress-controller/nginx-$(ARCH):0.87
+BASEIMAGE?=172.16.1.99/transwarp/nginx-ingress-controller:0.24.1
 
 ifeq ($(ARCH),arm64)
 	QEMUARCH=aarch64
@@ -117,7 +118,7 @@ else
 	$(SED_I) "s/CROSS_BUILD_//g" $(DOCKERFILE)
 endif
 
-	@$(DOCKER) build --no-cache --pull -t $(MULTI_ARCH_IMG):$(TAG) $(TEMP_DIR)/rootfs
+	@$(DOCKER) build --network=host --no-cache --pull -t $(MULTI_ARCH_IMG):$(TAG) $(TEMP_DIR)/rootfs
 
 ifeq ($(ARCH), amd64)
 	# This is for maintaining backward compatibility

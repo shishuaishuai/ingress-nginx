@@ -102,7 +102,7 @@ type Backend struct {
 	NoServer bool `json:"noServer"`
 	// Policies to describe the characteristics of an alternative backend.
 	// +optional
-	TrafficShapingPolicy TrafficShapingPolicy `json:"trafficShapingPolicy,omitempty"`
+	TrafficShapingPolicy TrafficShapingPolicy `json:"trafficShapingPolicy,omitempty"`  //金丝雀的处理
 	// Contains a list of backends without servers that are associated with this backend.
 	// +optional
 	AlternativeBackends []string `json:"alternativeBackends,omitempty"`
@@ -316,6 +316,18 @@ type Location struct {
 	ModSecurity modsecurity.Config `json:"modsecurity"`
 	// Satisfy dictates allow access if any or all is set
 	Satisfy string `json:"satisfy"`
+    // Redirect by referer
+	RedirectByReferer bool ` json:"redirectByReferer"`
+
+	RedirectByServiceDomain bool ` json:"redirectByServiceDomain"`
+	// Overwrite the Forwarded-Host header passed into the backend. Defaults to
+	// vhost of the incoming request.
+	// +optional
+	UpstreamForwardedHost string ` json:"upstreamForwardedHost"`
+	// Strip URI with original uri not decoded
+	// Fix guardian uri with %2F issue
+	// +optional
+	EnableStripUri bool ` json:"enableStripUri"`
 }
 
 // SSLPassthroughBackend describes a SSL upstream server configured

@@ -171,6 +171,14 @@ var (
 		"opentracingPropagateContext":        opentracingPropagateContext,
 		"buildCustomErrorLocationsPerServer": buildCustomErrorLocationsPerServer,
 		"shouldLoadModSecurityModule":        shouldLoadModSecurityModule,
+
+		"buildRedirectByRefererPrefixes":     buildRedirectByRefererPrefixes,
+
+		"buildRedirectByReferer":             buildRedirectByReferer,
+		"buildRedirectByServiceDomainUris":   buildRedirectByServiceDomainUris,
+
+		"buildRedirectByServiceDomain":       buildRedirectByServiceDomain,
+		"buildStripUris":      buildStripUris,
 	}
 )
 
@@ -462,7 +470,7 @@ func buildLogFormatUpstream(input interface{}) string {
 // If the annotation nginx.ingress.kubernetes.io/add-base-url:"true" is specified it will
 // add a base tag in the head of the response from the service
 func buildProxyPass(host string, b interface{}, loc interface{}) string {
-	backends, ok := b.([]*ingress.Backend)
+	backends, ok := b.([]*ingress.Backend) //里面有金丝雀
 	if !ok {
 		klog.Errorf("expected an '[]*ingress.Backend' type but %T was returned", b)
 		return ""
@@ -507,6 +515,14 @@ func buildProxyPass(host string, b interface{}, loc interface{}) string {
 
 			break
 		}
+	}
+
+	// if enable strip uri, rewrite target will be ignored
+	if location.EnableStripUri {
+		return fmt.Sprintf("%v %s%s/$strip_uri;", proxyPass, proto, upstreamName)
+		//return fmt.Sprintf("%v %s%s/$strip_uri;", proxyPass, proto, upstreamName)
+
+		// proxy_pass https://upstream_balancer/$strip_uri;
 	}
 
 	// defProxyPass returns the default proxy_pass, just the name of the upstream
@@ -1078,3 +1094,120 @@ func shouldLoadModSecurityModule(c interface{}, s interface{}) bool {
 	// Not enabled globally nor via annotation on a location, no need to load the module.
 	return false
 }
+
+func buildRedirectByRefererPrefixes(input interface{}) []string {
+	prefixes := sets.String{}
+
+	servers, ok := input.([]*ingress.Server)
+	if !ok {
+		klog.Errorf("expected a '[]*ingress.Server' type but %T was returned", input)
+		return prefixes.List()
+	}
+
+	for _, server := range servers {
+		if server.Hostname == "_" {
+			for _, loc := range server.Locations {
+				if loc.RedirectByReferer && loc.Path != "/"{
+
+					tmpPath := strings.TrimSuffix(loc.Path, "(/|$)(.*)")
+					prefix := fmt.Sprintf("~^https?://[^/]+%s(?![^/^\\?])/?(.*)        %s;",
+						tmpPath, tmpPath)
+					if !prefixes.Has(prefix) {
+						prefixes.Insert(prefix)
+					}
+				}
+			}
+			break
+		}
+	}
+
+	return prefixes.List()
+}
+
+func buildRedirectByReferer(host string, path string) string {
+	if host == "_" && path == `~* "^/"` {
+		return "if ($redirect_by_referer_prefix != \"\" ){return 307 $scheme://$host:$server_port$redirect_by_referer_prefix$request_uri; }"
+	}
+	return ""
+}
+
+func buildRedirectByServiceDomainUris(input interface{}) []string {
+	uris := sets.String{}
+
+	servers, ok := input.([]*ingress.Server)
+	if !ok {
+		klog.Errorf("expected a '[]*ingress.Server' type but %T was returned", input)
+		return uris.List()
+	}
+
+	for _, server := range servers {
+		if server.Hostname == "_" {
+			for _, loc := range server.Locations {
+				path := loc.Path
+
+				tmpPath := strings.TrimSuffix(path, "(/|$)(.*)")
+				if !strings.HasSuffix(tmpPath, "/") {
+					tmpPath += "/"
+				}
+				serviceDomain := fmt.Sprintf("%s.%s.svc",loc.Service.Name, loc.Service.Namespace)
+				servicePort := loc.Port.String()
+				uri := fmt.Sprintf("~^/%s(?![^\\.^:^/])[^/^:]*%s(?![^/])/?(.*)        %s$1;",
+					serviceDomain, ":" + servicePort, tmpPath)
+
+				if servicePort == "443" || servicePort == "80" {
+					uri = fmt.Sprintf("~^/%s(?![^\\.^:^/])[^/^:]*(?:(?:%s(?![^/])|/)/?(.*))?        %s$1;",
+						serviceDomain, ":" + servicePort, tmpPath)
+				}
+
+				if !uris.Has(uri) {
+					uris.Insert(uri)
+				}
+			}
+			break
+		}
+	}
+
+	return uris.List()
+}
+
+func buildRedirectByServiceDomain(host string, path string) string {
+	if host == "_" && path == `~* "^/"` {
+		return "if ($redirect_by_service_domain_uri != \"\" ){return 307 $scheme://$host:$server_port$redirect_by_service_domain_uri; }"
+	}
+	return ""
+}
+
+
+func buildStripUris(input interface{}) []string {
+	uris := sets.String{}
+
+	servers, ok := input.([]*ingress.Server)
+	if !ok {
+		klog.Errorf("expected a '[]*ingress.Server' type but %T was returned", input)
+		return uris.List()
+	}
+
+	for _, server := range servers {
+		if server.Hostname == "_" {
+			for _, loc := range server.Locations {
+				if loc.EnableStripUri {
+					path := loc.Path
+					tmpPath := strings.TrimSuffix(path, "(/|$)(.*)")
+					if !strings.HasSuffix(tmpPath, "/") {
+						tmpPath += "/"
+					}
+
+					uri := fmt.Sprintf("~^%s(.*)            $1;", tmpPath)
+					if !uris.Has(uri) {
+						uris.Insert(uri)
+					}
+				}
+			}
+			break
+		}
+	}
+
+	return uris.List()
+}
+
+

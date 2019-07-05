@@ -1,0 +1,20 @@
+# Copyright 2017 Transwarp All rights reserved.
+
+FROM 172.16.1.99/gcr.io/google_containers/kube-cross:v1.9.2-1 AS build-env
+MAINTAINER TOS <tos@transwarp.io>
+ADD . /go/src/k8s.io/ingress-nginx
+RUN cd /go/src/k8s.io/ingress-nginx && make build-to-rootfs
+
+FROM 172.16.1.99/transwarp/kubernetes-ingress-controller/nginx-amd64:0.87
+# Create symlinks to redirect nginx logs to stdout and stderr docker log collector
+# This only works if nginx is started with CMD or ENTRYPOINT
+RUN mkdir -p /var/log/nginx \
+  && ln -sf /dev/stdout /var/log/nginx/access.log \
+  && ln -sf /dev/stderr /var/log/nginx/error.log
+
+COPY --from=build-env /go/src/k8s.io/ingress-nginx/rootfs /
+
+ENTRYPOINT ["/usr/bin/dumb-init"]
+
+CMD ["/nginx-ingress-controller"]
+

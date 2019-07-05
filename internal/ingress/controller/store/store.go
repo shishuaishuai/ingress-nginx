@@ -247,13 +247,13 @@ func New(checkOCSP bool,
 		sslStore:                     NewSSLCertTracker(),
 		filesystem:                   fs,
 		updateCh:                     updateCh,
-		backendConfig:                ngx_config.NewDefault(),
+		backendConfig:                ngx_config.NewDefault(), //对应的配置
 		syncSecretMu:                 &sync.Mutex{},
 		backendConfigMu:              &sync.RWMutex{},
 		secretIngressMap:             NewObjectRefMap(),
 		defaultSSLCertificate:        defaultSSLCertificate,
 		isDynamicCertificatesEnabled: isDynamicCertificatesEnabled,
-		pod:                          pod,
+		pod:                          pod, // ingress的配置
 	}
 
 	eventBroadcaster := record.NewBroadcaster()
@@ -520,7 +520,7 @@ func New(checkOCSP bool,
 		DeleteFunc: func(obj interface{}) {
 			updateCh.In() <- Event{
 				Type: DeleteEvent,
-				Obj:  obj,
+				Obj:  obj, //各种不同的对象
 			}
 		},
 		UpdateFunc: func(old, cur interface{}) {

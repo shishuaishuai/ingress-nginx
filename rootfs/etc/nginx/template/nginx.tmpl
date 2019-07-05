@@ -464,6 +464,28 @@ http {
     }
     {{ end }}
 
+    map $http_referer $redirect_by_referer_prefix {
+        default           "";
+        {{ range $prefix := (buildRedirectByRefererPrefixes $servers) }}
+        {{ $prefix }}
+        {{ end }}
+    }
+
+    map $request_uri $strip_uri {
+        default           "";
+        {{ range $stripUri := (buildStripUris $servers) }}
+        {{ $stripUri }}
+        {{ end }}
+    }
+
+    # if redirect_by_service_domain_url is not empty, this request would be redirected to this url
+    map $request_uri $redirect_by_service_domain_uri {
+        default           "";
+        {{ range $serviceDomainUri := (buildRedirectByServiceDomainUris $servers) }}
+        {{ $serviceDomainUri }}
+        {{ end }}
+    }
+
     {{/* Build server redirects (from/to www) */}}
     {{ range $redirect := .RedirectServers }}
     ## start server {{ $redirect.From }}
@@ -1204,7 +1226,12 @@ stream {
             {{ else }}
             {{ $proxySetHeader }} X-Forwarded-For        $the_real_ip;
             {{ end }}
-            {{ $proxySetHeader }} X-Forwarded-Host       $best_http_host;
+            {{/* By default use vhost as Forwarded-Host to upstream, but allow overrides */}}
+            {{ if not (empty $location.UpstreamForwardedHost) }}
+            proxy_set_header X-Forwarded-Host       "{{ $location.UpstreamForwardedHost }}";
+            {{ else }}
+            proxy_set_header X-Forwarded-Host       $best_http_host;
+            {{ end }}
             {{ $proxySetHeader }} X-Forwarded-Port       $pass_port;
             {{ $proxySetHeader }} X-Forwarded-Proto      $pass_access_scheme;
             {{ if $all.Cfg.ProxyAddOriginalURIHeader }}
@@ -1262,6 +1289,9 @@ stream {
             proxy_set_header       X-Request-ID       $req_id;
             {{ end }}
 
+            {{ buildRedirectByServiceDomain $server.Hostname $path }}
+            {{ buildRedirectByReferer $server.Hostname $path }}
+
             {{ if $location.Satisfy }}
             satisfy {{ $location.Satisfy }};
             {{ end }}
@@ -1276,15 +1306,27 @@ stream {
             error_page {{ $errCode }} = @custom_{{ $location.DefaultBackendUpstreamName }}_{{ $errCode }};{{ end }}
 
             {{ buildProxyPass $server.Hostname $all.Backends $location }}
-            {{ if (or (eq $location.Proxy.ProxyRedirectFrom "default") (eq $location.Proxy.ProxyRedirectFrom "off")) }}
+
+            {{ if $location.RedirectByServiceDomain }}
+            # when redirect_by_service_domain is true, if backend server return 301 with location which is
+            # service domain, it would be transformed to a location which can access this service through nginx
+            # For examples:
+            # https://cy-cas.hnnxst1.svc:8388/cas/login  --> https://<nginx_ip>:<nginx-port>/cy-cas.hnnxst1.svc:8388/cas/login
+            proxy_redirect ~^https?://([^/]+\.svc(?![^\.^:^/])[^/]*)/?(.*) $scheme://$host:$server_port/$1/$2;
+            {{ end }}
+            {{ if eq $location.Proxy.ProxyRedirectFrom "default" }}
             proxy_redirect                          {{ $location.Proxy.ProxyRedirectFrom }};
-            {{ else if not (eq $location.Proxy.ProxyRedirectTo "off") }}
-            proxy_redirect                          {{ $location.Proxy.ProxyRedirectFrom }} {{ $location.Proxy.ProxyRedirectTo }};
+            {{ else if eq $location.Proxy.ProxyRedirectFrom "off" }}
+            {{ if not $location.RedirectByServiceDomain }}
+            proxy_redirect                          {{ $location.Proxy.ProxyRedirectFrom }};
             {{ end }}
             {{ else }}
-            # Location denied. Reason: {{ $location.Denied | printf "%q" }}
-            return 503;
+            proxy_redirect                          {{ $location.Proxy.ProxyRedirectFrom }} {{ $location.Proxy.ProxyRedirectTo }};
             {{ end }}
+            # {{ else }}
+            # No endpoints available for the request
+            # return 503;
+            # {{ end }}
         }
         {{ end }}
         {{ end }}

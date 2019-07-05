@@ -37,6 +37,7 @@ import (
 	"k8s.io/ingress-nginx/internal/ingress/annotations/proxy"
 	ngx_config "k8s.io/ingress-nginx/internal/ingress/controller/config"
 	"k8s.io/ingress-nginx/internal/k8s"
+
 	"k8s.io/klog"
 )
 
@@ -121,7 +122,7 @@ func (n *NGINXController) syncIngress(interface{}) error {
 		return nil
 	}
 
-	ings := n.store.ListIngresses(nil)
+	ings := n.store.ListIngresses(nil) //获取所有的ingress
 	hosts, servers, pcfg := n.getConfiguration(ings)
 
 	if n.isLeader() {
@@ -242,7 +243,7 @@ func (n *NGINXController) CheckIngress(ing *networking.Ingress) error {
 		return err
 	}
 
-	err = n.testTemplate(content)
+	err = n.testTemplate(content) //得到模板文件内容
 	if err != nil {
 		n.metricCollector.IncCheckErrorCount(ing.ObjectMeta.Namespace, ing.Name)
 	} else {
@@ -771,7 +772,7 @@ func (n *NGINXController) createUpstreams(data []*ingress.Ingress, du *ingress.B
 					}
 				}
 
-				// configure traffic shaping for canary
+				// configure traffic shaping for canary 金丝雀的处理
 				if anns.Canary.Enabled {
 					upstreams[name].NoServer = true
 					upstreams[name].TrafficShapingPolicy = ingress.TrafficShapingPolicy{
@@ -1173,6 +1174,10 @@ func locationApplyAnnotations(loc *ingress.Location, anns *annotations.Ingress) 
 	loc.CustomHTTPErrors = anns.CustomHTTPErrors
 	loc.ModSecurity = anns.ModSecurity
 	loc.Satisfy = anns.Satisfy
+	loc.RedirectByReferer = anns.RedirectByReferer
+	loc.RedirectByServiceDomain = anns.RedirectByServiceDomain
+	loc.UpstreamForwardedHost = anns.UpstreamForwardedHost
+	loc.EnableStripUri = anns.EnableStripUri
 }
 
 // OK to merge canary ingresses iff there exists one or more ingresses to potentially merge into

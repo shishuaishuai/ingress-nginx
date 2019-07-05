@@ -62,6 +62,10 @@ import (
 	"k8s.io/ingress-nginx/internal/ingress/annotations/xforwardedprefix"
 	"k8s.io/ingress-nginx/internal/ingress/errors"
 	"k8s.io/ingress-nginx/internal/ingress/resolver"
+	"k8s.io/ingress-nginx/internal/ingress/annotations/referer"
+	"k8s.io/ingress-nginx/internal/ingress/annotations/upstreamforwardedhost"
+	"k8s.io/ingress-nginx/internal/ingress/annotations/servicedomain"
+	"k8s.io/ingress-nginx/internal/ingress/annotations/strip"
 )
 
 // DeniedKeyName name of the key that contains the reason to deny a location
@@ -73,7 +77,7 @@ type Ingress struct {
 	BackendProtocol      string
 	Alias                string
 	BasicDigestAuth      auth.Config
-	Canary               canary.Config
+	Canary               canary.Config //金丝雀发布
 	CertificateAuth      authtls.Config
 	ClientBodyBufferSize string
 	ConfigurationSnippet string
@@ -107,6 +111,10 @@ type Ingress struct {
 	LuaRestyWAF        luarestywaf.Config
 	InfluxDB           influxdb.Config
 	ModSecurity        modsecurity.Config
+	RedirectByReferer  bool
+	RedirectByServiceDomain bool
+	UpstreamForwardedHost string
+	EnableStripUri        bool
 }
 
 // Extractor defines the annotation parsers to be used in the extraction of annotations
@@ -153,6 +161,11 @@ func NewAnnotationExtractor(cfg resolver.Resolver) Extractor {
 			"InfluxDB":             influxdb.NewParser(cfg),
 			"BackendProtocol":      backendprotocol.NewParser(cfg),
 			"ModSecurity":          modsecurity.NewParser(cfg),
+			"RedirectByReferer":    referer.NewParser(cfg),
+			"RedirectByServiceDomain": servicedomain.NewParser(cfg),
+			"UpstreamForwardedHost":  upstreamforwardedhost.NewParser(cfg),
+			"EnableStripUri":        strip.NewParser(cfg),
+
 		},
 	}
 }
